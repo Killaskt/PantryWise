@@ -20,7 +20,11 @@ import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 export const pantryIngredientSchema = z.object({
   id: z.string().default(() => crypto.randomUUID()), // Add unique ID for list keys
   name: z.string().min(1, 'Ingredient name cannot be empty'),
-  quantity: z.string().min(1, 'Quantity cannot be empty').default('some'), // Make quantity required
+  quantity: z.string()
+    .min(1, 'Quantity cannot be empty (e.g., "1 cup", "200g", "some").')
+    .refine(val => val.trim().length > 0, { message: 'Quantity cannot be just whitespace.' })
+    .refine(val => !/^\d+$/.test(val) || val === '0', { message: 'Please include units (e.g., "1 cup", "2 apples") or use descriptive terms like "some".' }) // Discourage numbers without units, allow '0'
+    .default('some'),
 });
 export type PantryIngredient = z.infer<typeof pantryIngredientSchema>;
 
@@ -53,27 +57,37 @@ export function PantryManager() {
     let initialPantry: PantryIngredient[] = [];
     if (storedPantry && typeof window !== 'undefined') {
       try {
-        const parsedPantry: Omit<PantryIngredient, 'id'>[] = JSON.parse(storedPantry);
-         if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string')) {
-            // Add IDs if missing from old format
-           initialPantry = parsedPantry.map(item => ({
-               ...item,
-               id: crypto.randomUUID(), // Assign a new UUID
-               quantity: item.quantity || 'some' // Ensure quantity exists
-           }));
-           setPantry(initialPantry);
-           // Re-save with IDs
-           localStorage.setItem(PANTRY_STORAGE_KEY, JSON.stringify(initialPantry));
-         } else {
-           localStorage.removeItem(PANTRY_STORAGE_KEY);
-         }
+        // Attempt to parse as the new format first (array of objects with id, name, quantity)
+        let parsedData = JSON.parse(storedPantry);
+
+        if (Array.isArray(parsedData) && parsedData.every(item => typeof item === 'object' && item !== null && 'id' in item && 'name' in item && 'quantity' in item)) {
+            // Already in the correct format
+            initialPantry = parsedData;
+        } else if (Array.isArray(parsedData) && parsedData.every(item => typeof item === 'object' && item !== null && 'name' in item)) {
+            // Old format (missing id or quantity details maybe) - Attempt migration
+            console.log("Migrating old pantry format...");
+            initialPantry = parsedData.map((item: any) => ({
+                id: item.id || crypto.randomUUID(), // Assign UUID if missing
+                name: item.name,
+                quantity: item.quantity || 'some', // Default quantity if missing
+            }));
+             // Re-save with IDs and quantities
+            localStorage.setItem(PANTRY_STORAGE_KEY, JSON.stringify(initialPantry));
+            console.log("Migration complete.");
+        } else {
+             console.warn("Unrecognized pantry format found in localStorage. Clearing.");
+             localStorage.removeItem(PANTRY_STORAGE_KEY);
+        }
+        setPantry(initialPantry);
+
       } catch (error) {
-        console.error("Error parsing pantry data:", error);
+        console.error("Error parsing or migrating pantry data:", error);
         localStorage.removeItem(PANTRY_STORAGE_KEY);
       }
     }
     setIsLoading(false);
   }, []);
+
 
   // Function to save the entire pantry state to localStorage
   const savePantryState = (updatedPantry: PantryIngredient[]) => {
@@ -84,18 +98,38 @@ export function PantryManager() {
   // Add or Update Ingredient
   const onSubmit = (data: PantryItemFormValues) => {
     let updatedPantry: PantryIngredient[];
+    const trimmedName = data.name.trim(); // Trim name
+    const trimmedQuantity = data.quantity.trim(); // Trim quantity
+
+    if (!trimmedName || !trimmedQuantity) {
+       toast({ title: 'Invalid Input', description: 'Ingredient name and quantity cannot be empty.', variant: 'destructive' });
+       return;
+    }
+
+
     if (editingItemId) {
         // Update existing item
         updatedPantry = pantry.map(item =>
-            item.id === editingItemId ? { ...item, name: data.name, quantity: data.quantity } : item
+            item.id === editingItemId ? { ...item, name: trimmedName, quantity: trimmedQuantity } : item
         );
-        toast({ title: 'Item Updated', description: `${data.name} quantity updated.` });
+        toast({ title: 'Item Updated', description: `${trimmedName} quantity updated.` });
         setEditingItemId(null); // Exit editing mode
     } else {
         // Add new item
-        const newItem: PantryIngredient = { ...data, id: crypto.randomUUID() };
-        updatedPantry = [...pantry, newItem];
-        toast({ title: 'Item Added', description: `${data.name} added to your pantry.` });
+        // Check if item already exists (case-insensitive)
+        const existingItemIndex = pantry.findIndex(item => item.name.toLowerCase() === trimmedName.toLowerCase());
+        if (existingItemIndex !== -1) {
+             // Update existing item's quantity instead of adding a duplicate
+             updatedPantry = pantry.map((item, index) =>
+                index === existingItemIndex ? { ...item, quantity: trimmedQuantity } : item
+             );
+             toast({ title: 'Item Updated', description: `${trimmedName} quantity updated.` });
+        } else {
+            // Add new item
+            const newItem: PantryIngredient = { name: trimmedName, quantity: trimmedQuantity, id: crypto.randomUUID() };
+            updatedPantry = [...pantry, newItem];
+            toast({ title: 'Item Added', description: `${trimmedName} added to your pantry.` });
+        }
     }
     setPantry(updatedPantry);
     savePantryState(updatedPantry);
@@ -167,7 +201,7 @@ export function PantryManager() {
               <Label htmlFor="quantity">Quantity</Label>
               <Input
                 id="quantity"
-                placeholder="e.g., 1 kg, 2 cans, some"
+                placeholder='e.g., 1 kg, 2 cans, "some", 3 apples' // Updated placeholder
                 aria-invalid={!!errors.quantity}
                 {...register("quantity")}
               />
