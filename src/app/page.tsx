@@ -13,8 +13,8 @@ export default function Home() {
   const preferencesFormId = 'preferences-form'; // Assuming PreferencesManager uses this ID for its form
 
   return (
-    // Default to collapsed on desktop for wider initial content view
-    <SidebarProvider defaultOpen={true}> {/* Default to open */}
+    // Default to open on desktop
+    <SidebarProvider defaultOpen={true}>
       {/* Sidebar component - Takes full height and flex column */}
       <Sidebar side="left" collapsible="icon" className="flex flex-col h-svh">
         {/* Header - Fixed at the top */}
@@ -74,6 +74,8 @@ export default function Home() {
               <h1 className="text-lg font-semibold text-primary ml-2">PantryWise</h1> {/* Optional title */}
            </header>
           {/* Scrollable Content */}
+          {/* This div's width is determined by its parent SidebarInset, which uses flex-1 */}
+          {/* flex-grow here makes it take available *vertical* space */}
           <div className="p-4 md:p-6 flex-grow overflow-y-auto">
              <RecipeSuggestions />
           </div>
