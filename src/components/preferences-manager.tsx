@@ -116,21 +116,21 @@ export function PreferencesManager() {
 
 
   return (
-    <Card className="w-full h-full flex flex-col">
-      <CardHeader>
-        <CardTitle>My Preferences</CardTitle>
+    <Card className="w-full h-full flex flex-col border-0 shadow-none">
+      <CardHeader className="px-2 pt-0 pb-2">
+        <CardTitle className="text-xl">My Preferences</CardTitle>
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col overflow-y-auto">
+      <CardContent className="flex-grow flex flex-col overflow-y-auto px-2 pb-2">
         {/* The form now wraps all content */}
-        <form onSubmit={handleSubmit(onSubmit)} id={formId} className="space-y-6 flex-grow flex flex-col">
+        <form onSubmit={handleSubmit(onSubmit)} id={formId} className="space-y-4 flex-grow flex flex-col">
 
           {/* Preferences Section */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium flex items-center gap-2"><Settings className="h-5 w-5"/> Preferences</h3>
+          <div className="space-y-3">
+            {/* <h3 className="text-lg font-medium flex items-center gap-2"><Settings className="h-5 w-5"/> Preferences</h3> */}
 
             {/* Food Goals */}
-            <div className="space-y-2">
-              <Label htmlFor="foodGoals">Food Goals</Label>
+            <div className="space-y-1">
+              <Label htmlFor="foodGoals" className="text-xs">Food Goals</Label>
               <Controller
                 name="foodGoals"
                 control={control}
@@ -138,16 +138,17 @@ export function PreferencesManager() {
                   <Input
                     {...field}
                     id="foodGoals"
-                    placeholder="e.g., Quick weeknight meal, Healthy lunch"
+                    placeholder="e.g., Quick meal, Healthy lunch"
+                    className="text-sm h-9"
                   />
                 )}
               />
-              {errors.foodGoals && <p className="text-sm text-destructive">{errors.foodGoals.message}</p>}
+              {errors.foodGoals && <p className="text-xs text-destructive">{errors.foodGoals.message}</p>}
             </div>
 
             {/* Cuisine Preference */}
-            <div className="space-y-2">
-              <Label htmlFor="cuisinePreference">Cuisine Preference</Label>
+            <div className="space-y-1">
+              <Label htmlFor="cuisinePreference" className="text-xs">Cuisine Preference</Label>
               <Controller
                 name="cuisinePreference"
                 control={control}
@@ -155,17 +156,18 @@ export function PreferencesManager() {
                   <Input
                     {...field}
                     id="cuisinePreference"
-                    placeholder="e.g., Italian, Mexican, Thai, No preference"
+                    placeholder="e.g., Italian, Mexican"
+                    className="text-sm h-9"
                   />
                 )}
               />
-              {errors.cuisinePreference && <p className="text-sm text-destructive">{errors.cuisinePreference.message}</p>}
+              {errors.cuisinePreference && <p className="text-xs text-destructive">{errors.cuisinePreference.message}</p>}
             </div>
 
             {/* Dietary Restrictions */}
-            <div className="space-y-2">
-              <Label>Dietary Restrictions</Label>
-              <div className="space-y-2">
+            <div className="space-y-1">
+              <Label className="text-xs">Dietary Restrictions</Label>
+              <div className="space-y-1.5">
                 {dietaryOptions.map((option) => (
                   <Controller
                     key={option.id}
@@ -189,7 +191,7 @@ export function PreferencesManager() {
                            />
                           <Label
                             htmlFor={`diet-${option.id}`}
-                            className="font-normal cursor-pointer"
+                            className="font-normal cursor-pointer text-sm"
                           >
                             {option.label}
                           </Label>
@@ -199,7 +201,7 @@ export function PreferencesManager() {
                   />
                 ))}
               </div>
-              {errors.dietaryRestrictions && <p className="text-sm text-destructive">{errors.dietaryRestrictions.message}</p>}
+              {errors.dietaryRestrictions && <p className="text-xs text-destructive">{errors.dietaryRestrictions.message}</p>}
             </div>
           </div>
 
@@ -209,13 +211,14 @@ export function PreferencesManager() {
 
         </form>
       </CardContent>
-       <CardFooter className="border-t pt-4 flex flex-col sm:flex-row gap-2 justify-between items-center">
+       <CardFooter className="border-t px-2 pt-2 pb-0 flex flex-col gap-2 justify-between items-center">
           {/* View Pantry Button */}
-          <Link href="/pantry" passHref legacyBehavior>
+          <Link href="/pantry" passHref legacyBehavior className="w-full">
             <Button
                 asChild={false} // Ensure it renders as a button for styling
                 variant="outline"
-                className="w-full sm:w-auto"
+                className="w-full" // Full width on mobile
+                size="sm"
             >
                 <a> {/* Link component wraps the Button */}
                   <BookOpen className="mr-2 h-4 w-4" />
@@ -224,25 +227,27 @@ export function PreferencesManager() {
             </Button>
           </Link>
 
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <div className="flex gap-2 w-full">
               <Button
                   type="button"
                   variant="ghost" // Changed variant for less emphasis
                   onClick={clearPreferences}
-                  className="w-full sm:w-auto"
+                  className="flex-1" // Take up available space
                   disabled={isSubmitting}
+                  size="sm"
               >
                   <UtensilsCrossed className="mr-2 h-4 w-4" />
-                  Clear Prefs
+                  Clear
               </Button>
               <Button
                 type="submit"
                 form={formId} // Associate with the form via its ID
                 disabled={isSubmitting}
-                className="w-full sm:w-auto"
+                className="flex-1" // Take up available space
+                size="sm"
               >
                 <Save className="mr-2 h-4 w-4" />
-                {isSubmitting ? 'Saving...' : 'Save Prefs'}
+                {isSubmitting ? 'Saving...' : 'Save'}
               </Button>
           </div>
       </CardFooter>
