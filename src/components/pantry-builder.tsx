@@ -1,46 +1,83 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { Sparkles, Save } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { Textarea } from '@/components/ui/textarea'; // Import Textarea
 
-const ingredientSchema = z.object({
-  name: z.string().min(1, 'Ingredient name is required'),
-  quantity: z.string().min(1, 'Quantity is required'),
+// Define the structure for a single pantry ingredient
+export const pantryIngredientSchema = z.object({
+  name: z.string().min(1, 'Ingredient name cannot be empty'),
+  quantity: z.string().optional().default('some'), // Make quantity optional, default to 'some'
 });
+export type PantryIngredient = z.infer<typeof pantryIngredientSchema>;
 
+// Define the schema for the bulk pantry input (textarea)
 const pantrySchema = z.object({
-  ingredients: z.array(ingredientSchema),
+  ingredientsText: z.string().optional(), // Textarea content
 });
 
 type PantryFormValues = z.infer<typeof pantrySchema>;
-export type PantryIngredient = z.infer<typeof ingredientSchema>;
 
 // Store pantry data in localStorage
 const PANTRY_STORAGE_KEY = 'pantrywise_pantry';
 
+// Helper function to parse comma-separated string into PantryIngredient array
+const parseIngredientsText = (text: string | undefined): PantryIngredient[] => {
+  if (!text) return [];
+  return text
+    .split(',')
+    .map(item => item.trim())
+    .filter(name => name.length > 0) // Filter out empty strings
+    .map(name => ({ name, quantity: 'some' })); // Assign default quantity
+};
+
+// Helper function to format PantryIngredient array into comma-separated string
+const formatIngredientsText = (ingredients: PantryIngredient[]): string => {
+  return ingredients.map(ing => ing.name).join(', ');
+};
+
+const exampleIngredients = [
+  { name: 'Chicken Breasts', quantity: '2' },
+  { name: 'Broccoli', quantity: '1 head' },
+  { name: 'Rice', quantity: '1 cup' },
+  { name: 'Soy Sauce', quantity: 'some' },
+  { name: 'Garlic', quantity: '2 cloves' },
+  { name: 'Olive Oil', quantity: 'some' },
+  { name: 'Onion', quantity: '1' },
+  { name: 'Canned Tomatoes', quantity: '1 can' },
+  { name: 'Pasta', quantity: '500g' },
+  { name: 'Cheese', quantity: 'some' },
+];
+
 export function PantryBuilder() {
   const [pantry, setPantry] = useState<PantryIngredient[]>([]);
   const { toast } = useToast();
+
+  const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<PantryFormValues>({
+    resolver: zodResolver(pantrySchema),
+    defaultValues: {
+      ingredientsText: '',
+    },
+  });
 
   // Load pantry from localStorage on initial render
   useEffect(() => {
     const storedPantry = localStorage.getItem(PANTRY_STORAGE_KEY);
     if (storedPantry) {
       try {
-        const parsedPantry = JSON.parse(storedPantry);
-        // Basic validation to ensure it's an array of objects with name/quantity
-        if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string' && typeof item.quantity === 'string')) {
+        const parsedPantry: PantryIngredient[] = JSON.parse(storedPantry);
+        // Basic validation
+        if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string')) {
            setPantry(parsedPantry);
-           reset({ ingredients: parsedPantry }); // Sync form state
+           reset({ ingredientsText: formatIngredientsText(parsedPantry) }); // Sync form state
         } else {
           console.error("Invalid pantry data found in localStorage.");
           localStorage.removeItem(PANTRY_STORAGE_KEY); // Clear invalid data
@@ -50,145 +87,90 @@ export function PantryBuilder() {
         localStorage.removeItem(PANTRY_STORAGE_KEY); // Clear corrupted data
       }
     }
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, [reset]); // Add reset to dependency array
 
-  // Save pantry to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem(PANTRY_STORAGE_KEY, JSON.stringify(pantry));
+  // Save pantry to localStorage whenever it changes (called on successful submit)
+  const savePantry = (newPantry: PantryIngredient[]) => {
+    setPantry(newPantry);
+    localStorage.setItem(PANTRY_STORAGE_KEY, JSON.stringify(newPantry));
     // Dispatch a custom event to notify other components (like RecipeSuggestions)
-    window.dispatchEvent(new CustomEvent('pantryUpdated', { detail: pantry }));
-  }, [pantry]);
-
-
-  const { control, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<PantryFormValues>({
-    resolver: zodResolver(pantrySchema),
-    defaultValues: {
-      ingredients: pantry,
-    },
-    mode: 'onChange', // Show errors immediately
-  });
-
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: 'ingredients',
-  });
-
-  const onSubmit = (data: PantryFormValues) => {
-    setPantry(data.ingredients);
-    toast({
+    window.dispatchEvent(new CustomEvent('pantryUpdated', { detail: newPantry }));
+     toast({
       title: 'Pantry Updated',
       description: 'Your pantry ingredients have been saved.',
     });
   };
 
-  // Add a new empty ingredient field
-  const addIngredientField = () => {
-    append({ name: '', quantity: '' });
+  const onSubmit = (data: PantryFormValues) => {
+    const parsedIngredients = parseIngredientsText(data.ingredientsText);
+    savePantry(parsedIngredients);
   };
 
-  // Handle removing an ingredient and update state immediately
-  const handleRemoveIngredient = (index: number) => {
-    remove(index);
-    // Update pantry state directly after removing from the form array
-    const currentValues = control._formValues.ingredients;
-    setPantry(currentValues);
-     toast({
-      title: 'Ingredient Removed',
-      description: 'The ingredient has been removed from your pantry.',
-      variant: 'destructive',
-    });
+  // Function to populate the textarea with example ingredients
+  const populateExamples = () => {
+    const exampleText = formatIngredientsText(exampleIngredients);
+    reset({ ingredientsText: exampleText }); // Update form state
+    // Optionally immediately save examples to pantry & storage:
+    // const parsedExamples = parseIngredientsText(exampleText);
+    // savePantry(parsedExamples);
+    // toast({
+    //   title: 'Examples Added',
+    //   description: 'Example ingredients added to your pantry. Click Save Pantry to confirm.',
+    // });
   };
-
-  // Handle input changes and update state immediately
-  const handleInputChange = (index: number, field: 'name' | 'quantity', value: string) => {
-    const currentValues = [...control._formValues.ingredients];
-    currentValues[index][field] = value;
-    setPantry(currentValues);
-  };
-
 
   return (
-    <Card className="w-full">
+    <Card className="w-full h-full flex flex-col">
       <CardHeader>
         <CardTitle>My Pantry</CardTitle>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <ScrollArea className="h-[400px] pr-4"> {/* Adjust height as needed */}
-            <div className="space-y-4">
-              {fields.map((field, index) => (
-                <div key={field.id} className="flex items-start space-x-2">
-                  <div className="flex-grow grid grid-cols-2 gap-2">
-                    <div>
-                      <Label htmlFor={`ingredients.${index}.name`} className="sr-only">Ingredient Name</Label>
-                       <Controller
-                        name={`ingredients.${index}.name`}
-                        control={control}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            placeholder="Ingredient Name"
-                            aria-invalid={!!errors.ingredients?.[index]?.name}
-                            onChange={(e) => {
-                              field.onChange(e);
-                              handleInputChange(index, 'name', e.target.value);
-                            }}
-                          />
-                        )}
-                      />
-                      {errors.ingredients?.[index]?.name && (
-                        <p className="text-sm text-destructive mt-1">{errors.ingredients[index]?.name?.message}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor={`ingredients.${index}.quantity`} className="sr-only">Quantity</Label>
-                       <Controller
-                        name={`ingredients.${index}.quantity`}
-                        control={control}
-                        render={({ field }) => (
-                           <Input
-                            {...field}
-                            placeholder="Quantity (e.g., 1 cup)"
-                            aria-invalid={!!errors.ingredients?.[index]?.quantity}
-                            onChange={(e) => {
-                              field.onChange(e);
-                              handleInputChange(index, 'quantity', e.target.value);
-                            }}
-                          />
-                        )}
-                      />
-                      {errors.ingredients?.[index]?.quantity && (
-                        <p className="text-sm text-destructive mt-1">{errors.ingredients[index]?.quantity?.message}</p>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleRemoveIngredient(index)}
-                    className="mt-1 text-muted-foreground hover:text-destructive"
-                    aria-label="Remove ingredient"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addIngredientField}
-            className="mt-4"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Add Ingredient
-          </Button>
+      <CardContent className="flex-grow flex flex-col">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 flex-grow flex flex-col">
+          <div className="flex-grow">
+             <Label htmlFor="ingredientsText">Ingredients</Label>
+            <Controller
+              name="ingredientsText"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  id="ingredientsText"
+                  placeholder="Enter ingredients separated by commas (e.g., chicken, rice, broccoli, soy sauce...)"
+                  className="h-full min-h-[200px] resize-none" // Make textarea fill available space
+                  aria-invalid={!!errors.ingredientsText}
+                />
+              )}
+            />
+            {errors.ingredientsText && (
+              <p className="text-sm text-destructive mt-1">{errors.ingredientsText.message}</p>
+            )}
+          </div>
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={populateExamples}
+                className="mt-auto" // Push button towards bottom if content area is large
+            >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Add Example Ingredients
+            </Button>
+
         </form>
       </CardContent>
-       {/* Removed CardFooter with explicit Save button as changes are saved on input */}
+       <CardFooter className="border-t pt-4">
+         {/* Add Save Button */}
+          <Button
+            type="submit" // Change type to submit to trigger form submission
+            form="pantry-form" // Associate with the form if needed, but onSubmit in form tag handles it
+            disabled={isSubmitting}
+            onClick={handleSubmit(onSubmit)} // Trigger submit handler
+            className="w-full"
+          >
+            <Save className="mr-2 h-4 w-4" />
+            {isSubmitting ? 'Saving...' : 'Save Pantry'}
+          </Button>
+      </CardFooter>
     </Card>
   );
 }
