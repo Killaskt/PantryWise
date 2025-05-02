@@ -113,10 +113,10 @@ export function PantryBuilder() {
     // Optionally immediately save examples to pantry & storage:
     // const parsedExamples = parseIngredientsText(exampleText);
     // savePantry(parsedExamples);
-    // toast({
-    //   title: 'Examples Added',
-    //   description: 'Example ingredients added to your pantry. Click Save Pantry to confirm.',
-    // });
+     toast({
+       title: 'Examples Added',
+       description: 'Example ingredients loaded into the text area. Click Save Pantry to confirm.',
+     });
   };
 
   return (
@@ -125,7 +125,8 @@ export function PantryBuilder() {
         <CardTitle>My Pantry</CardTitle>
       </CardHeader>
       <CardContent className="flex-grow flex flex-col">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 flex-grow flex flex-col">
+        {/* The form now wraps the content and the example button */}
+        <form onSubmit={handleSubmit(onSubmit)} id="pantry-form" className="space-y-4 flex-grow flex flex-col">
           <div className="flex-grow">
              <Label htmlFor="ingredientsText">Ingredients</Label>
             <Controller
@@ -155,16 +156,15 @@ export function PantryBuilder() {
                 <Sparkles className="mr-2 h-4 w-4" />
                 Add Example Ingredients
             </Button>
-
         </form>
       </CardContent>
        <CardFooter className="border-t pt-4">
          {/* Add Save Button */}
           <Button
-            type="submit" // Change type to submit to trigger form submission
-            form="pantry-form" // Associate with the form if needed, but onSubmit in form tag handles it
+            type="submit" // Use type="submit" to trigger the form's onSubmit
+            form="pantry-form" // Associate with the form via its ID
             disabled={isSubmitting}
-            onClick={handleSubmit(onSubmit)} // Trigger submit handler
+            // onClick={handleSubmit(onSubmit)} // No need for onClick if type="submit" and associated with form
             className="w-full"
           >
             <Save className="mr-2 h-4 w-4" />
