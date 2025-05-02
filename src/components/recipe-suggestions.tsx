@@ -7,7 +7,7 @@ import { generateRecipeFromPantry, GenerateRecipeFromPantryOutput, GenerateRecip
 import { refineRecipe, RefineRecipeInput, RefineRecipeOutput } from '@/ai/flows/refine-recipe'; // Ensure RefineRecipeOutput is imported if needed elsewhere
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ChefHat, Clock, Info, Sparkles, Wand2 } from 'lucide-react';
+import { Loader2, RefreshCw, ChefHat, Clock, Info, Bot } from 'lucide-react'; // Replaced Sparkles, Wand2 with Bot
 import type { PantryIngredient } from '@/components/pantry-manager'; // Import from pantry-manager
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -379,7 +379,7 @@ export function RecipeSuggestions() {
           <Card className="mt-6 shadow-md rounded-lg overflow-hidden bg-card border border-dashed border-accent/50">
             <CardHeader>
               <CardTitle className="text-xl flex items-center gap-2">
-                <Wand2 className="h-5 w-5 text-accent" />
+                <Bot className="h-5 w-5 text-accent" /> {/* Changed icon */}
                 Refine This Recipe
               </CardTitle>
               <CardDescription>Suggest changes like "make it spicier", "add mushrooms", "use less chicken", etc. (We'll check your pantry for availability!)</CardDescription>
@@ -400,7 +400,7 @@ export function RecipeSuggestions() {
             </CardContent>
             <CardFooter>
               <Button onClick={handleRefineRecipe} disabled={isRefining || !refinementInput.trim()}>
-                <Sparkles className={`mr-2 h-4 w-4 ${isRefining ? 'animate-spin' : ''}`} />
+                <Bot className={`mr-2 h-4 w-4 ${isRefining ? 'animate-spin' : ''}`} /> {/* Changed icon */}
                 {isRefining ? 'Refining...' : 'Generate Variation'}
               </Button>
             </CardFooter>
