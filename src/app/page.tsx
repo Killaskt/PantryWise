@@ -1,7 +1,8 @@
+
 import { SidebarProvider, Sidebar, SidebarInset, SidebarContent, SidebarHeader, SidebarFooter } from '@/components/ui/sidebar';
-import { PantryBuilder } from '@/components/pantry-builder';
+import { PreferencesManager } from '@/components/preferences-manager'; // Changed import
 import { RecipeSuggestions } from '@/components/recipe-suggestions';
-import { Header } from '@/components/header'; // Assuming Header is created
+import { Header } from '@/components/header';
 
 export default function Home() {
   return (
@@ -11,7 +12,7 @@ export default function Home() {
           <Header />
         </SidebarHeader>
         <SidebarContent className="p-4">
-          <PantryBuilder />
+          <PreferencesManager /> {/* Changed component */}
         </SidebarContent>
         <SidebarFooter>
           {/* Footer content if needed */}

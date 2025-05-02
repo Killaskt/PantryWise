@@ -1,3 +1,4 @@
+
 import type {Metadata} from 'next';
 import { Inter } from 'next/font/google'; // Import Inter
 import './globals.css';
@@ -23,9 +24,9 @@ export default function RootLayout({
     <html lang="en">
       {/* Apply Inter font via CSS variable */}
       <body className={`${inter.variable} font-sans antialiased`}>
-        <main className="min-h-screen flex flex-col">
+        <> {/* Use a Fragment to avoid adding extra divs */}
           {children}
-        </main>
+        </>
         <Toaster />
       </body>
     </html>
