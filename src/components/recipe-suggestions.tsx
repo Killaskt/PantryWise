@@ -1,55 +1,78 @@
+
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { generateRecipeFromPantry, GenerateRecipeFromPantryOutput } from '@/ai/flows/generate-recipe-from-pantry';
-import { refineRecipe, RefineRecipeInput } from '@/ai/flows/refine-recipe'; // Import refineRecipe flow
+import { generateRecipeFromPantry, GenerateRecipeFromPantryOutput, GenerateRecipeFromPantryInput } from '@/ai/flows/generate-recipe-from-pantry';
+import { refineRecipe, RefineRecipeInput } from '@/ai/flows/refine-recipe';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ChefHat, Clock, Info, Sparkles, Wand2 } from 'lucide-react'; // Import Wand2 icon
+import { Loader2, RefreshCw, ChefHat, Clock, Info, Sparkles, Wand2 } from 'lucide-react';
 import type { PantryIngredient } from '@/components/pantry-builder'; // Use type import
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea'; // Import Textarea
-import { Label } from '@/components/ui/label'; // Import Label
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 
 const PANTRY_STORAGE_KEY = 'pantrywise_pantry';
+const PREFERENCES_STORAGE_KEY = 'pantrywise_preferences';
 
-// Helper to get pantry from localStorage, ensuring it runs only client-side
+// Type for Preferences stored in localStorage
+type StoredPreferences = {
+  foodGoals?: string;
+  cuisinePreference?: string;
+  dietaryRestrictions?: string[];
+};
+
+// Helper to get pantry from localStorage
 const getPantryFromStorage = (): PantryIngredient[] => {
-  if (typeof window === 'undefined') {
-    return [];
-  }
-  const storedPantry = localStorage.getItem(PANTRY_STORAGE_KEY);
-  if (storedPantry) {
+  if (typeof window === 'undefined') return [];
+  const stored = localStorage.getItem(PANTRY_STORAGE_KEY);
+  if (stored) {
     try {
-      const parsedPantry = JSON.parse(storedPantry);
-       if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string')) {
-         return parsedPantry;
+      const parsed = JSON.parse(stored);
+       if (Array.isArray(parsed) && parsed.every(item => typeof item.name === 'string')) {
+         return parsed;
       } else {
-        console.error("Invalid pantry data structure found in localStorage.");
         localStorage.removeItem(PANTRY_STORAGE_KEY);
       }
     } catch (error) {
-      console.error("Failed to parse pantry from localStorage:", error);
       localStorage.removeItem(PANTRY_STORAGE_KEY);
     }
   }
   return [];
 };
 
+// Helper to get preferences from localStorage
+const getPreferencesFromStorage = (): StoredPreferences => {
+  if (typeof window === 'undefined') return {};
+  const stored = localStorage.getItem(PREFERENCES_STORAGE_KEY);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      // Add basic validation if needed
+      return parsed;
+    } catch (error) {
+      localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+    }
+  }
+  return {};
+};
+
+
 export function RecipeSuggestions() {
   const [suggestedRecipe, setSuggestedRecipe] = useState<GenerateRecipeFromPantryOutput | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [pantry, setPantry] = useState<PantryIngredient[]>([]);
-  const [refinementInput, setRefinementInput] = useState<string>(''); // State for refinement textarea
-  const [isRefining, setIsRefining] = useState<boolean>(false); // State for refinement loading
-  const [refinementError, setRefinementError] = useState<string | null>(null); // State for refinement error
+  const [preferences, setPreferences] = useState<StoredPreferences>({});
+  const [refinementInput, setRefinementInput] = useState<string>('');
+  const [isRefining, setIsRefining] = useState<boolean>(false);
+  const [refinementError, setRefinementError] = useState<string | null>(null);
   const { toast } = useToast();
 
-  // Function to fetch initial suggestions
-  const fetchSuggestions = useCallback(async (currentPantry: PantryIngredient[]) => {
+  // Function to fetch suggestions, now including preferences
+  const fetchSuggestions = useCallback(async (currentPantry: PantryIngredient[], currentPrefs: StoredPreferences) => {
     if (currentPantry.length === 0) {
       setSuggestedRecipe(null);
       setError(null);
@@ -62,15 +85,24 @@ export function RecipeSuggestions() {
     setSuggestedRecipe(null);
 
     try {
-      if (!Array.isArray(currentPantry) || currentPantry.length === 0) {
+       if (!Array.isArray(currentPantry) || currentPantry.length === 0) {
          throw new Error("Pantry is empty or invalid.");
       }
-      const recipe = await generateRecipeFromPantry({
+
+      // Prepare input for the AI flow, including preferences
+      const input: GenerateRecipeFromPantryInput = {
         pantryIngredients: currentPantry,
-      });
+        // Combine dietary restrictions array into a string for the prompt, if present
+        dietaryRestrictions: currentPrefs.dietaryRestrictions?.join(', '),
+        cuisinePreference: currentPrefs.cuisinePreference,
+        // Optionally add foodGoals to the input if your flow uses it
+        // foodGoals: currentPrefs.foodGoals, // Example: uncomment if flow expects foodGoals
+      };
+
+      const recipe = await generateRecipeFromPantry(input);
       setSuggestedRecipe(recipe);
-      setRefinementInput(''); // Clear refinement input when new recipe is generated
-      setRefinementError(null); // Clear previous refinement errors
+      setRefinementInput('');
+      setRefinementError(null);
     } catch (err: any) {
       console.error('Error generating recipe:', err);
       setError(`Failed to generate recipe suggestion: ${err.message || 'Please try again.'}`);
@@ -78,38 +110,55 @@ export function RecipeSuggestions() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, []); // No dependencies needed here as it gets called with current state
 
-  // Effect to load pantry and fetch initial suggestions on mount (client-side)
+  // Effect to load initial data and set up listeners
   useEffect(() => {
     const initialPantry = getPantryFromStorage();
+    const initialPrefs = getPreferencesFromStorage();
     setPantry(initialPantry);
-    fetchSuggestions(initialPantry);
-  }, [fetchSuggestions]);
+    setPreferences(initialPrefs);
+    fetchSuggestions(initialPantry, initialPrefs); // Fetch initial suggestions
 
-  // Listen for pantry updates from PantryBuilder
-  useEffect(() => {
+    // Listener for pantry updates
     const handlePantryUpdate = (event: Event) => {
       const updatedPantry = (event as CustomEvent<PantryIngredient[]>).detail;
       setPantry(updatedPantry);
-      fetchSuggestions(updatedPantry);
+      // Fetch new suggestions with current preferences
+      const currentPrefs = getPreferencesFromStorage();
+      setPreferences(currentPrefs);
+      fetchSuggestions(updatedPantry, currentPrefs);
+    };
+
+    // Listener for preferences updates
+    const handlePreferencesUpdate = (event: Event) => {
+        const updatedPrefs = (event as CustomEvent<StoredPreferences>).detail;
+        setPreferences(updatedPrefs);
+        // Fetch new suggestions with current pantry
+        const currentPantry = getPantryFromStorage();
+        setPantry(currentPantry);
+        fetchSuggestions(currentPantry, updatedPrefs);
     };
 
     window.addEventListener('pantryUpdated', handlePantryUpdate);
+    window.addEventListener('preferencesUpdated', handlePreferencesUpdate);
 
     return () => {
       window.removeEventListener('pantryUpdated', handlePantryUpdate);
+      window.removeEventListener('preferencesUpdated', handlePreferencesUpdate);
     };
-  }, [fetchSuggestions]);
+  }, [fetchSuggestions]); // fetchSuggestions is stable due to useCallback
 
-   // Manual refresh handler
+   // Manual refresh handler - uses current state
   const handleRefresh = () => {
-    const currentPantry = getPantryFromStorage();
+    const currentPantry = getPantryFromStorage(); // Re-fetch latest
+    const currentPrefs = getPreferencesFromStorage(); // Re-fetch latest
     setPantry(currentPantry);
-    fetchSuggestions(currentPantry);
+    setPreferences(currentPrefs);
+    fetchSuggestions(currentPantry, currentPrefs);
   };
 
-  // Handler for refining the recipe
+  // Handler for refining the recipe - uses current state
   const handleRefineRecipe = async () => {
     if (!suggestedRecipe || !refinementInput.trim()) {
       setRefinementError("Please enter your suggestions for refinement.");
@@ -120,18 +169,26 @@ export function RecipeSuggestions() {
     setRefinementError(null);
 
     try {
-      const currentPantry = getPantryFromStorage(); // Get the latest pantry state
+      const currentPantry = getPantryFromStorage(); // Get latest pantry
+      const currentPrefs = getPreferencesFromStorage(); // Get latest preferences
+
       const refineInput: RefineRecipeInput = {
         originalRecipe: suggestedRecipe,
         refinementPrompt: refinementInput,
-        pantryIngredients: currentPantry, // Pass current pantry to refinement flow
+        pantryIngredients: currentPantry,
+        // Pass current preferences to the refine flow
+        preferences: { // Assuming refine flow accepts preferences
+            dietaryRestrictions: currentPrefs.dietaryRestrictions?.join(', '),
+            cuisinePreference: currentPrefs.cuisinePreference,
+            // foodGoals: currentPrefs.foodGoals, // Optional
+        }
       };
       const refinedRecipe = await refineRecipe(refineInput);
-      setSuggestedRecipe(refinedRecipe); // Update the displayed recipe
-      setRefinementInput(''); // Clear the input field
+      setSuggestedRecipe(refinedRecipe); // Update displayed recipe
+      setRefinementInput(''); // Clear input field
       toast({
         title: 'Recipe Refined',
-        description: 'The recipe suggestion has been updated based on your feedback.',
+        description: 'The suggestion updated based on your feedback.',
       });
     } catch (err: any) {
       console.error('Error refining recipe:', err);
@@ -139,7 +196,7 @@ export function RecipeSuggestions() {
       toast({
         variant: 'destructive',
         title: 'Refinement Failed',
-        description: `Could not refine the recipe. ${err.message || 'Please try again.'}`,
+        description: `Could not refine. ${err.message || 'Please try again.'}`,
       });
     } finally {
       setIsRefining(false);
@@ -191,15 +248,15 @@ export function RecipeSuggestions() {
         </Card>
       )}
 
-      {/* No Suggestions State (Pantry has items, but no recipe found) */}
+      {/* No Suggestions State */}
       {!isLoading && !error && !suggestedRecipe && pantry.length > 0 && (
          <Card className="border-dashed border-2">
            <CardHeader className="items-center text-center">
              <ChefHat className="h-12 w-12 text-muted-foreground mb-2" />
             <CardTitle>No Suggestion Available</CardTitle>
             <CardDescription>
-              We couldn't generate a recipe suggestion with your current pantry items.
-              Try adding more diverse items or click Refresh.
+              Couldn't generate a recipe with current pantry/preferences.
+              Try adding more items, adjusting preferences, or click Refresh.
             </CardDescription>
              <Button onClick={handleRefresh} className="mt-4" disabled={isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -274,7 +331,7 @@ export function RecipeSuggestions() {
                 <Wand2 className="h-5 w-5 text-accent" />
                 Refine This Recipe
               </CardTitle>
-              <CardDescription>Suggest changes like "make it spicier", "add mushrooms if possible", "vegetarian version", or "change cuisine to Thai".</CardDescription>
+              <CardDescription>Suggest changes like "make it spicier", "add mushrooms", "vegetarian version", etc. (We'll check your pantry for additions!)</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
                <Label htmlFor="refinementInput">Your Suggestions</Label>
@@ -282,7 +339,7 @@ export function RecipeSuggestions() {
                 id="refinementInput"
                 value={refinementInput}
                 onChange={(e) => setRefinementInput(e.target.value)}
-                placeholder="e.g., Make it suitable for kids, use less oil, add bell peppers..."
+                placeholder="e.g., Make it gluten-free, add bell peppers if possible..."
                 className="min-h-[60px]"
                 disabled={isRefining}
               />
@@ -302,3 +359,5 @@ export function RecipeSuggestions() {
     </div>
   );
 }
+
+    
