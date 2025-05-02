@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { generateRecipeFromPantry, GenerateRecipeFromPantryOutput } from '@/ai/flows/generate-recipe-from-pantry';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'; // Import CardFooter
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, ChefHat, Clock, Tag } from 'lucide-react';
+import { Loader2, RefreshCw, ChefHat, Clock, Info } from 'lucide-react'; // Import Info icon
 import type { PantryIngredient } from '@/components/pantry-builder'; // Use type import
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
@@ -56,14 +56,18 @@ export function RecipeSuggestions() {
     setSuggestedRecipe(null); // Clear previous recipe while loading new one
 
     try {
+       // Basic validation before calling the API
+      if (!Array.isArray(currentPantry) || currentPantry.length === 0) {
+         throw new Error("Pantry is empty or invalid.");
+      }
       const recipe = await generateRecipeFromPantry({
         pantryIngredients: currentPantry,
         // Add dietary restrictions, cuisine preference, cook time preference later if needed
       });
       setSuggestedRecipe(recipe);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error generating recipe:', err);
-      setError('Failed to generate recipe suggestion. Please try again.');
+      setError(`Failed to generate recipe suggestion: ${err.message || 'Please try again.'}`);
       setSuggestedRecipe(null);
     } finally {
       setIsLoading(false);
@@ -105,7 +109,7 @@ export function RecipeSuggestions() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold tracking-tight">Recipe Suggestions</h2>
-        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading || pantry.length === 0}>
           <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           {isLoading ? 'Refreshing...' : 'Refresh Suggestions'}
         </Button>
@@ -113,7 +117,7 @@ export function RecipeSuggestions() {
 
       {error && (
          <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
+           <AlertTitle>Error Generating Recipe</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -145,13 +149,16 @@ export function RecipeSuggestions() {
         </Card>
       )}
 
-      {/* No Suggestions State (Pantry has items, but no recipe found) */}
+      {/* No Suggestions State (Pantry has items, but no recipe found by AI or due to limitations) */}
       {!isLoading && !error && !suggestedRecipe && pantry.length > 0 && (
          <Card className="border-dashed border-2">
            <CardHeader className="items-center text-center">
              <ChefHat className="h-12 w-12 text-muted-foreground mb-2" />
-            <CardTitle>No Suggestions Yet</CardTitle>
-            <CardDescription>We couldn't find a recipe with your current pantry items. Try adding more ingredients or click Refresh.</CardDescription>
+            <CardTitle>No Suggestion Available</CardTitle>
+            <CardDescription>
+              We couldn't generate a recipe suggestion with your current pantry items.
+              This might be due to limited ingredients or temporary issues. Try adding more diverse items or refresh.
+            </CardDescription>
              <Button onClick={handleRefresh} className="mt-4" disabled={isLoading}>
                 <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                 {isLoading ? 'Refreshing...' : 'Refresh Suggestions'}
@@ -178,26 +185,43 @@ export function RecipeSuggestions() {
               </span>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 pb-4"> {/* Added pb-4 */}
             <div>
-              <h3 className="text-lg font-semibold mb-2 text-foreground">Ingredients</h3>
-              <ul className="list-disc pl-5 space-y-1 text-foreground/90">
-                {suggestedRecipe.ingredients.map((ing, index) => (
-                  <li key={index}>
-                    <span className="font-medium">{ing.quantity}</span> {ing.name}
-                  </li>
-                ))}
-              </ul>
+              <h3 className="text-lg font-semibold mb-2 text-foreground">Ingredients (from Pantry)</h3>
+              {suggestedRecipe.ingredients.length > 0 ? (
+                <ul className="list-disc pl-5 space-y-1 text-foreground/90">
+                  {suggestedRecipe.ingredients.map((ing, index) => (
+                    <li key={index}>
+                      <span className="font-medium">{ing.quantity}</span> {ing.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                 <p className="text-sm text-muted-foreground italic">No specific ingredients from pantry listed for this recipe variation.</p>
+              )}
             </div>
             <div>
               <h3 className="text-lg font-semibold mb-2 text-foreground">Instructions</h3>
-              <ol className="list-decimal pl-5 space-y-2 text-foreground/90">
-                {suggestedRecipe.instructions.map((step, index) => (
-                  <li key={index}>{step}</li>
-                ))}
-              </ol>
+               {suggestedRecipe.instructions.length > 0 ? (
+                  <ol className="list-decimal pl-5 space-y-2 text-foreground/90">
+                    {suggestedRecipe.instructions.map((step, index) => (
+                      <li key={index}>{step}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">No instructions provided.</p>
+                )}
             </div>
           </CardContent>
+           {/* Notes Section */}
+          {suggestedRecipe.notes && (
+            <CardFooter className="bg-secondary/50 p-4 border-t">
+                <div className="flex items-start gap-2 text-sm">
+                    <Info className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                    <p className="text-muted-foreground"><span className="font-semibold">Notes:</span> {suggestedRecipe.notes}</p>
+                </div>
+            </CardFooter>
+           )}
         </Card>
       )}
     </div>
