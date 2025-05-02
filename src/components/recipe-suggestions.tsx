@@ -2,6 +2,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link'; // Import Link
 import { generateRecipeFromPantry, GenerateRecipeFromPantryOutput, GenerateRecipeFromPantryInput } from '@/ai/flows/generate-recipe-from-pantry';
 import { refineRecipe, RefineRecipeInput, RefineRecipeOutput } from '@/ai/flows/refine-recipe'; // Ensure RefineRecipeOutput is imported if needed elsewhere
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
