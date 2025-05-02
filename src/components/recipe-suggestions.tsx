@@ -9,21 +9,28 @@ import type { PantryIngredient } from '@/components/pantry-builder'; // Use type
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 
-// Helper to get pantry from localStorage
+const PANTRY_STORAGE_KEY = 'pantrywise_pantry';
+
+// Helper to get pantry from localStorage, ensuring it runs only client-side
 const getPantryFromStorage = (): PantryIngredient[] => {
-  // This check ensures localStorage is accessed only on the client-side
-  if (typeof window !== 'undefined') {
-    const storedPantry = localStorage.getItem('pantrywise_pantry');
-    if (storedPantry) {
-      try {
-        const parsedPantry = JSON.parse(storedPantry);
-         if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string' && typeof item.quantity === 'string')) {
-           return parsedPantry;
-        }
-      } catch (error) {
-        console.error("Failed to parse pantry from localStorage:", error);
-        localStorage.removeItem('pantrywise_pantry'); // Clear corrupted data
+  // Check if running in a browser environment
+  if (typeof window === 'undefined') {
+    return []; // Return empty array during SSR or environments without window
+  }
+  const storedPantry = localStorage.getItem(PANTRY_STORAGE_KEY);
+  if (storedPantry) {
+    try {
+      const parsedPantry = JSON.parse(storedPantry);
+       // Validate the parsed data structure
+       if (Array.isArray(parsedPantry) && parsedPantry.every(item => typeof item.name === 'string')) {
+         return parsedPantry;
+      } else {
+        console.error("Invalid pantry data structure found in localStorage.");
+        localStorage.removeItem(PANTRY_STORAGE_KEY); // Clear invalid data
       }
+    } catch (error) {
+      console.error("Failed to parse pantry from localStorage:", error);
+      localStorage.removeItem(PANTRY_STORAGE_KEY); // Clear corrupted data
     }
   }
   return [];
@@ -31,15 +38,12 @@ const getPantryFromStorage = (): PantryIngredient[] => {
 
 export function RecipeSuggestions() {
   const [suggestedRecipe, setSuggestedRecipe] = useState<GenerateRecipeFromPantryOutput | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // Start loading true initially
   const [error, setError] = useState<string | null>(null);
-  const [pantry, setPantry] = useState<PantryIngredient[]>([]);
+  const [pantry, setPantry] = useState<PantryIngredient[]>([]); // Initialize with empty array
 
   // Function to fetch suggestions
-  const fetchSuggestions = useCallback(async () => {
-    const currentPantry = getPantryFromStorage();
-    setPantry(currentPantry); // Update local state for display logic
-
+  const fetchSuggestions = useCallback(async (currentPantry: PantryIngredient[]) => {
     if (currentPantry.length === 0) {
       setSuggestedRecipe(null); // Clear suggestions if pantry is empty
       setError(null); // Clear any previous errors
@@ -64,20 +68,22 @@ export function RecipeSuggestions() {
     } finally {
       setIsLoading(false);
     }
-  }, []); // No dependencies needed initially
+  }, []); // No dependencies needed
 
-  // Initial fetch on component mount (client-side only)
+  // Effect to load pantry and fetch initial suggestions on mount (client-side)
   useEffect(() => {
-    fetchSuggestions();
-  }, [fetchSuggestions]); // fetchSuggestions is stable due to useCallback
+    const initialPantry = getPantryFromStorage();
+    setPantry(initialPantry);
+    fetchSuggestions(initialPantry);
+  }, [fetchSuggestions]);
 
   // Listen for pantry updates from PantryBuilder
   useEffect(() => {
     const handlePantryUpdate = (event: Event) => {
        // We know the detail is PantryIngredient[] based on how we dispatch it
       const updatedPantry = (event as CustomEvent<PantryIngredient[]>).detail;
-      setPantry(updatedPantry);
-      fetchSuggestions(); // Re-fetch suggestions when pantry updates
+      setPantry(updatedPantry); // Update local pantry state
+      fetchSuggestions(updatedPantry); // Re-fetch suggestions with updated pantry
     };
 
     window.addEventListener('pantryUpdated', handlePantryUpdate);
@@ -85,14 +91,21 @@ export function RecipeSuggestions() {
     return () => {
       window.removeEventListener('pantryUpdated', handlePantryUpdate);
     };
-  }, [fetchSuggestions]); // Re-run if fetchSuggestions changes (though it's stable)
+  }, [fetchSuggestions]); // Re-run if fetchSuggestions changes (it's stable)
+
+   // Manual refresh handler
+  const handleRefresh = () => {
+    const currentPantry = getPantryFromStorage();
+    setPantry(currentPantry);
+    fetchSuggestions(currentPantry);
+  };
 
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-semibold tracking-tight">Recipe Suggestions</h2>
-        <Button variant="outline" size="sm" onClick={fetchSuggestions} disabled={isLoading}>
+        <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
           <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           {isLoading ? 'Refreshing...' : 'Refresh Suggestions'}
         </Button>
@@ -105,6 +118,7 @@ export function RecipeSuggestions() {
         </Alert>
       )}
 
+      {/* Loading State */}
       {isLoading && (
          <Card>
           <CardHeader>
@@ -120,28 +134,34 @@ export function RecipeSuggestions() {
         </Card>
       )}
 
-      {!isLoading && !error && !suggestedRecipe && pantry.length === 0 && (
+       {/* Empty Pantry State */}
+      {!isLoading && !error && pantry.length === 0 && (
         <Card className="border-dashed border-2">
            <CardHeader className="items-center text-center">
              <ChefHat className="h-12 w-12 text-muted-foreground mb-2" />
              <CardTitle>Your Pantry is Empty</CardTitle>
-            <CardDescription>Add some ingredients to your pantry to get recipe suggestions.</CardDescription>
+            <CardDescription>Add some ingredients to your pantry (on the left!) to get recipe suggestions.</CardDescription>
           </CardHeader>
         </Card>
       )}
 
+      {/* No Suggestions State (Pantry has items, but no recipe found) */}
       {!isLoading && !error && !suggestedRecipe && pantry.length > 0 && (
          <Card className="border-dashed border-2">
            <CardHeader className="items-center text-center">
              <ChefHat className="h-12 w-12 text-muted-foreground mb-2" />
             <CardTitle>No Suggestions Yet</CardTitle>
             <CardDescription>We couldn't find a recipe with your current pantry items. Try adding more ingredients or click Refresh.</CardDescription>
-             <Button onClick={fetchSuggestions} className="mt-4">Refresh Suggestions</Button>
+             <Button onClick={handleRefresh} className="mt-4" disabled={isLoading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                {isLoading ? 'Refreshing...' : 'Refresh Suggestions'}
+             </Button>
           </CardHeader>
         </Card>
       )}
 
 
+      {/* Recipe Found State */}
       {!isLoading && !error && suggestedRecipe && (
         <Card className="shadow-md rounded-lg overflow-hidden bg-card">
           <CardHeader>
