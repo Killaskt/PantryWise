@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useId } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -9,11 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Save, Settings, UtensilsCrossed, BookOpen } from 'lucide-react'; // Added BookOpen for View Pantry
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'; // Removed CardFooter
 import { useToast } from '@/hooks/use-toast';
 import { Separator } from '@/components/ui/separator';
-import Link from 'next/link'; // Import Link for navigation
+import Link from 'next/link'; // Keep Link if needed elsewhere, but button is removed
 
 // Define available dietary restrictions
 const dietaryOptions = [
@@ -39,9 +38,13 @@ const PREFERENCES_STORAGE_KEY = 'pantrywise_preferences';
 // Type for Preferences stored in localStorage
 type StoredPreferences = PreferencesFormValues;
 
-export function PreferencesManager() {
+// Accept formId as a prop
+interface PreferencesManagerProps {
+  formId: string;
+}
+
+export function PreferencesManager({ formId }: PreferencesManagerProps) {
   const { toast } = useToast();
-  const formId = useId();
 
   const { control, handleSubmit, reset, watch, formState: { errors, isSubmitting } } = useForm<PreferencesFormValues>({
     resolver: zodResolver(preferencesSchema),
@@ -59,7 +62,16 @@ export function PreferencesManager() {
     if (storedPrefs && typeof window !== 'undefined') {
        try {
          const parsedPrefs: StoredPreferences = JSON.parse(storedPrefs);
-         initialPrefs = parsedPrefs;
+         // Basic validation
+         if (typeof parsedPrefs === 'object' && parsedPrefs !== null) {
+            initialPrefs = {
+                foodGoals: typeof parsedPrefs.foodGoals === 'string' ? parsedPrefs.foodGoals : '',
+                cuisinePreference: typeof parsedPrefs.cuisinePreference === 'string' ? parsedPrefs.cuisinePreference : '',
+                dietaryRestrictions: Array.isArray(parsedPrefs.dietaryRestrictions) ? parsedPrefs.dietaryRestrictions.filter((r: any) => typeof r === 'string') : [],
+            };
+         } else {
+             localStorage.removeItem(PREFERENCES_STORAGE_KEY);
+         }
        } catch (error) {
           localStorage.removeItem(PREFERENCES_STORAGE_KEY);
        }
@@ -71,6 +83,12 @@ export function PreferencesManager() {
       cuisinePreference: initialPrefs.cuisinePreference ?? '',
       dietaryRestrictions: initialPrefs.dietaryRestrictions ?? [],
     });
+
+     // Expose clear function (example using custom event or state lift)
+     const handleClearRequest = () => clearPreferences();
+     window.addEventListener('clearPreferencesRequest', handleClearRequest);
+     return () => window.removeEventListener('clearPreferencesRequest', handleClearRequest);
+
 
   }, [reset]);
 
@@ -97,7 +115,7 @@ export function PreferencesManager() {
     saveData(data);
   };
 
-  // Clear preferences
+  // Clear preferences function remains, might be triggered externally now
   const clearPreferences = () => {
     localStorage.removeItem(PREFERENCES_STORAGE_KEY);
     reset({
@@ -114,20 +132,28 @@ export function PreferencesManager() {
      });
   }
 
+  // Expose clear function to be called externally (e.g., by button in SidebarFooter)
+  useEffect(() => {
+     const handleClearRequest = () => clearPreferences();
+     // Assuming the button in SidebarFooter dispatches this event or calls a context function
+     document.addEventListener('clear-preferences-event', handleClearRequest);
+     return () => document.removeEventListener('clear-preferences-event', handleClearRequest);
+  }, [reset]); // Dependencies as needed
+
 
   return (
-    <Card className="w-full h-full flex flex-col border-0 shadow-none">
-      <CardHeader className="px-2 pt-0 pb-2">
+    // Adjust Card styling: remove shadow/border if sidebar provides it, ensure full height
+    <Card className="w-full h-full flex flex-col border-0 shadow-none bg-transparent">
+      <CardHeader className="px-0 pt-0 pb-2"> {/* Adjust padding */}
         <CardTitle className="text-xl">My Preferences</CardTitle>
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col overflow-y-auto px-2 pb-2">
-        {/* The form now wraps all content */}
-        <form onSubmit={handleSubmit(onSubmit)} id={formId} className="space-y-4 flex-grow flex flex-col">
+      {/* Use flex-grow on CardContent and the form inside it */}
+      <CardContent className="flex-grow overflow-y-auto px-0 pb-0">
+        {/* The form now wraps all content and takes full height */}
+        <form onSubmit={handleSubmit(onSubmit)} id={formId} className="space-y-4 flex flex-col h-full">
 
           {/* Preferences Section */}
-          <div className="space-y-3">
-            {/* <h3 className="text-lg font-medium flex items-center gap-2"><Settings className="h-5 w-5"/> Preferences</h3> */}
-
+          <div className="space-y-3 flex-grow"> {/* Make this section grow */}
             {/* Food Goals */}
             <div className="space-y-1">
               <Label htmlFor="foodGoals" className="text-xs">Food Goals</Label>
@@ -139,7 +165,7 @@ export function PreferencesManager() {
                     {...field}
                     id="foodGoals"
                     placeholder="e.g., Quick meal, Healthy lunch"
-                    className="text-sm h-9"
+                    className="text-sm h-9" // Ensure input height is consistent
                   />
                 )}
               />
@@ -157,7 +183,7 @@ export function PreferencesManager() {
                     {...field}
                     id="cuisinePreference"
                     placeholder="e.g., Italian, Mexican"
-                    className="text-sm h-9"
+                    className="text-sm h-9" // Consistent height
                   />
                 )}
               />
@@ -205,52 +231,10 @@ export function PreferencesManager() {
             </div>
           </div>
 
-          {/* Spacer to push buttons down */}
-           <div className="flex-grow"></div>
-
-
+          {/* Removed Spacer and Footer - Buttons are external now */}
         </form>
       </CardContent>
-       <CardFooter className="border-t px-2 pt-2 pb-0 flex flex-col gap-2 justify-between items-center">
-          {/* View Pantry Button */}
-          <Link href="/pantry" passHref legacyBehavior className="w-full">
-            <Button
-                asChild={false} // Ensure it renders as a button for styling
-                variant="outline"
-                className="w-full" // Full width on mobile
-                size="sm"
-            >
-                <a> {/* Link component wraps the Button */}
-                  <BookOpen className="mr-2 h-4 w-4" />
-                  View Pantry
-                </a>
-            </Button>
-          </Link>
-
-          <div className="flex gap-2 w-full">
-              <Button
-                  type="button"
-                  variant="ghost" // Changed variant for less emphasis
-                  onClick={clearPreferences}
-                  className="flex-1" // Take up available space
-                  disabled={isSubmitting}
-                  size="sm"
-              >
-                  <UtensilsCrossed className="mr-2 h-4 w-4" />
-                  Clear
-              </Button>
-              <Button
-                type="submit"
-                form={formId} // Associate with the form via its ID
-                disabled={isSubmitting}
-                className="flex-1" // Take up available space
-                size="sm"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSubmitting ? 'Saving...' : 'Save'}
-              </Button>
-          </div>
-      </CardFooter>
+       {/* CardFooter removed */}
     </Card>
   );
 }

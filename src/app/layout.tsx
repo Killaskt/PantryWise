@@ -24,9 +24,10 @@ export default function RootLayout({
     <html lang="en">
       {/* Apply Inter font via CSS variable */}
       <body className={`${inter.variable} font-sans antialiased`}>
-        <> {/* Use a Fragment to avoid adding extra divs */}
-          {children}
-        </>
+         {/* Add a wrapper with min-width */}
+         <div className="min-w-[320px]"> {/* Adjust 320px as needed */}
+            {children}
+         </div>
         <Toaster />
       </body>
     </html>
