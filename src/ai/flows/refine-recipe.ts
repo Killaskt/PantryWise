@@ -54,7 +54,7 @@ const RefineRecipeOutputSchema = z.object({
       })
     )
     .describe('The ingredients list for the *refined* recipe, **strictly derived from the provided pantry list only**.'),
-  instructions: z.array(z.string()).describe('The *refined* preparation instructions.'),
+  instructions: z.array(z.string()).describe('The *refined* preparation instructions, as a list of numbered steps (starting from 1).'), // Specify numbering requirement
   cuisine: z.string().describe('The cuisine of the *refined* recipe.'),
   cookTime: z.number().describe('The estimated cook time for the *refined* recipe in minutes.'),
   description: z.string().describe('A brief description of the *refined* recipe.'),
@@ -70,7 +70,7 @@ export async function refineRecipe(input: RefineRecipeInput): Promise<RefineReci
 }
 
 
-// Updated prompt to consider preferences during refinement
+// Updated prompt to consider preferences during refinement and fix Handlebars syntax
 const prompt = ai.definePrompt({
   name: 'refineRecipePrompt',
   input: { schema: RefineRecipeInputSchema },
@@ -88,7 +88,7 @@ Ingredients:
 {{/each}}
 Instructions:
 {{#each originalRecipe.instructions}}
-{{@index + 1}}. {{this}}
+- {{this}}
 {{/each}}
 {{#if originalRecipe.notes}}
 Notes: {{originalRecipe.notes}}
@@ -127,6 +127,7 @@ Also, keep the user's general preferences in mind:
 Generate a **new, refined version** of the recipe based on the user's request and preferences, strictly adhering to the pantry and dietary constraints.
 - Modify the title, description, ingredients, instructions, cuisine, and cook time as necessary.
 - The 'ingredients' list in your output **must only** contain items available in the 'Current Pantry Ingredients' list.
+- The 'instructions' list in your output **must be a list of numbered steps starting from 1**.
 - If the user's refinement request asks for an ingredient not in the pantry, try to achieve the desired effect (e.g., spiciness) using pantry items, or state in the 'notes' field that the specific ingredient wasn't available. You can suggest it as an *optional* non-pantry addition in the notes if appropriate.
 - If the request or preferences fundamentally cannot be met with the current pantry (e.g., "make it vegetarian" when the only protein is meat, or adding an allergen specified in restrictions), explain this limitation clearly in the 'notes' field. Return the *original recipe* data or a minimally modified version if some aspect could be changed safely.
 - Ensure the output format matches the required schema.
@@ -166,5 +167,3 @@ const refineRecipeFlow = ai.defineFlow<
 
   return output;
 });
-
-    
